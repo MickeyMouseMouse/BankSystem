@@ -1,45 +1,80 @@
 import threading
-import Database
 import socket
 
 class BankSystemThread(threading.Thread):
 	def __init__(self, sock, db):
 		threading.Thread.__init__(self)
 		self.sock = sock
+		self.sock.settimeout(1.5)  
 		self.db = db
+		self.stop_event = threading.Event()
+
+	def sendMessage(self, msg):
+		try:
+			self.sock.send(msg.encode('utf-8'))
+		except socket.error:
+			self.stop_event.set()
 
 	def run(self):
 		account = None
+		card = None
 		while True:
-			parts = str(self.sock.recv(40).decode('utf-8')).split()
-		
+			if self.stop_event.is_set(): break
+			
+			try:
+				parts = str(self.sock.recv(40).decode('utf-8')).split()
+				if len(parts) == 0: # client is dead
+					self.stop_event.set()
+					continue
+			except socket.timeout:
+				continue
+				
 			if (parts[0] == "exit"): 
 				break
 		
 			if account == None:
 				if parts[0] == "sign":
 					if parts[1] == "in":
-						account = self.db.getAccount(parts[2], int(parts[3]), int(parts[4]))
+						account = self.db.getAccount(int(parts[2]))
 						if account == None: 
-							self.sock.send("-1".encode('utf-8'))
+							self.sendMessage("-1")
 						else:
-							self.sock.send("0".encode('utf-8'))
+							self.sendMessage(account.client_name)
 					else:
-						account = self.db.addAccount(parts[2], int(parts[3]))
-						self.sock.send(str(account.card_ID).encode('utf-8'))
+						account = self.db.addAccount(parts[2])
+						self.sendMessage(str(account.client_ID))
 			else:	
+				if parts[0] == "select":
+					status, card = account.getCard(int(parts[1]), int(parts[2]))
+					if status == None: self.sendMessage("No card with this id")
+					if status == -1: self.sendMessage("Wrong password")
+					if status == 0: self.sendMessage("Done")
+				
+				if parts[0] == "new":
+					card = account.addCard(parts[1])
+					self.sendMessage("Card id is " + str(card.card_ID))
+				
 				if parts[0] == "amount":
-					self.sock.send(str(account.getAmount()).encode('utf-8'))
+					if card != None:
+						self.sendMessage(str(card.getAmount()))
+					else:
+						self.sendMessage("First select your card")
 				
 				if parts[0] == "get":
-					result = account.withdrawMoney(int(parts[1]))
-					if result == -1:
-						self.sock.send("Error".encode('utf-8'))
+					if card != None:
+						result = card.withdrawMoney(int(parts[1]))
+						if result == -1:
+							self.sendMessage("There is no such money")
+						else:
+							self.sendMessage(str(result))
 					else:
-						self.sock.send(str(result).encode('utf-8'))
-		
+						self.sendMessage("First select your card")					
+					
 				if parts[0] == "put":
-					result = account.addMoney(int(parts[1]))
-					self.sock.send(str(result).encode('utf-8'))
+					if card != None:
+						result = card.addMoney(int(parts[1]))
+						self.sendMessage(str(result))
+					else:
+						self.sendMessage("First select your card")					
 			
 		self.sock.close()

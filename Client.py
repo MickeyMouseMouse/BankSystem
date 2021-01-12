@@ -1,49 +1,72 @@
+import signal
 import socket
 import re
 
+def sendMessage(msg):
+    try:
+        client.send(msg.encode('utf-8'))
+    except socket.error:
+        print("Server disconnected")
+        exit(0)
+
+def receiveMessage():
+    try:
+        return str(client.recv(40).decode('utf-8'))
+    except socket.error:
+        print("Server disconnected")
+        exit(0)
+
+# actions before ending (on sigint)
+def sigint_handler(sig, frame):
+    client.send("exit".encode('utf-8'))
+    client.close()
+    exit(0)
+
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect(("127.0.0.1", 8080))
+client.settimeout(1.5)
+try:
+    client.connect(("127.0.0.1", 8080))
+except socket.error:
+    print("Server is unavailable")
+    exit(0)
 
-print("1) sign in <Client ID> <Card ID> <Pin Code>")
-print("2) sign up <Client ID> <Pin Code>")
-print("3) exit")
-while True:    
-    while True:
-        line = input(">>> ")
-        
-        if line == "exit":
-            client.send(line.encode('utf-8'))
-            client.close()
-            exit(0)
-        
-        if re.fullmatch("sign (in [A-z]+ [0-9]+ [0-9]{4}|up [A-z]+ [0-9]{4})", line):
-            client.send(line.encode('utf-8'))
+signal.signal(signal.SIGINT, sigint_handler)
+print("Ctrl-C to exit")
+
+print("1) sign in <Client ID>")
+print("2) sign up <Client Name>")
+while True:
+    line = input(">>> ") 
+
+    if re.fullmatch("sign in [0-9]+", line):
+        sendMessage(line)
+        name = receiveMessage()
+        if name == "-1":
+            print("Error occurred. Try again")
+            continue
+        else:
+            print("Hello,", name)
             break
-        
-        print("Incorrect input")
 
-    card_ID = str(client.recv(10).decode('utf-8'))
-    if card_ID == "-1":
-        print("Something went wrong. Try again")
-    else:
-        if card_ID != "0": print("Your Card ID is", card_ID) 
-        print("You are signed in")
+    if re.fullmatch("sign up [A-z]+", line):
+        sendMessage(line)
+        _id_ = receiveMessage()
+        print("Your ID is", _id_)
         break
         
-print("1) amount")
-print("2) get <money>")
-print("3) put <money>")
-print("4) exit")
+    print("Incorrect input")
+
+print("You are signed in")
+print("1) select <card ID> <pin code>")
+print("2) new <pin code>")
+print("3) amount")
+print("4) get <money>")
+print("5) put <money>")
 while True:
     line = input(">>> ")
-    
-    if line == "exit":
-        client.send(line.encode('utf-8'))
-        client.close()
-        break
         
-    if re.fullmatch("amount|(get|put) [0-9]+", line):
-        client.send(line.encode('utf-8'))
-        print(str(client.recv(40).decode('utf-8')))
+    if re.fullmatch("select [0-9]+ [0-9]{4}|new [0-9]{4}|amount|(get|put) [0-9]+", line):
+        sendMessage(line)
+        print(receiveMessage())
     else:
         print("Incorrect input")

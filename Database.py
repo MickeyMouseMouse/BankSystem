@@ -1,28 +1,31 @@
 import os.path
+import json
 import Account
 
 class Database:
 	def __init__(self, databaseFile):
 		self.databaseFile = databaseFile
-		self.data = []
+		self.accounts = []
 		if not os.path.exists(databaseFile): return
 		with open(databaseFile, 'r') as db:
-			for line in db:
-				parts = line.split()
-				self.data.append(Account.Account(parts[0], parts[1], parts[2], parts[3]))
+			for client in json.load(db).items():
+				self.accounts.append(Account.Account(client))
 
-	def save(self):
+	def _update_(self):
+		data = {}
+		for account in self.accounts:
+			result = account.getData()
+			data[result[0]] = result[1]
 		with open(self.databaseFile, 'w') as db:
-			for account in self.data:
-				db.write(account.__str__() + "\n")
+				json.dump(data, db)
 
-	def getAccount(self, client_ID, card_ID, pin_code):
-		for account in self.data:
-			if account.equals(client_ID, card_ID, pin_code):
+	def getAccount(self, client_ID):
+		for account in self.accounts:
+			if account.client_ID == client_ID:
 				return account
 		return None
 
-	def addAccount(self, client_ID, pin_code):
-		newAccount = Account.Account(client_ID, len(self.data) + 1, pin_code, 0)
-		self.data.append(newAccount)
+	def addAccount(self, client_name):
+		newAccount = Account.Account((len(self.accounts) + 1, {"client_name" : client_name, "cards" : []}))
+		self.accounts.append(newAccount)
 		return newAccount

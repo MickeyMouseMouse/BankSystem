@@ -1,53 +1,35 @@
-import threading
+import Card
 
 class Account:
-	def __init__(self, client_ID, card_ID, pin_code, money):
-		self.client_ID = str(client_ID)
-		self.card_ID = int(card_ID)
-		self.pin_code = int(pin_code)
-		self.money = int(money)
-		
-		self.event = threading.Event() # to synchronize threads
-		self.event.set()
+	def __init__(self, data):
+		self.client_ID = int(data[0])
+		self.client_name = data[1].get("client_name")
+		self.cards = []
+		for card_data in data[1].get("cards"):
+			self.cards.append(Card.Card(card_data))
 	
 	def __str__(self):
-		return self.client_ID + " " + str(self.card_ID) + " " + str(self.pin_code) + " " + str(self.money)
-
-	def equals(self, client_ID, card_ID, pin_code):
-		if (self.client_ID == client_ID and 
-			self.card_ID == card_ID and 
-			self.pin_code == pin_code): 
-			return True
-		else:
-			return False
+		result = "_Client:_\n" + self.client_name +  ", id = " + str(self.client_ID) + "\n_Cards:_\n"
+		for card in self.cards:
+			result += card.__str__() + "\n"
+		return result
+		
+	def getData(self):
+		cards_data = []
+		for card in self.cards:
+			cards_data.append(card.getData())
+		return [self.client_ID, {"client_name" : self.client_name, "cards" : cards_data}]
 	
-	def getAmount(self):
-		self.event.wait()
-		self.event.clear()
+	def getCard(self, card_ID, pin_code):
+		for card in self.cards:
+			if card.card_ID == card_ID:
+				if card.pin_code == pin_code:
+					return (0, card)
+				else:
+					return (-1, None)
+		return (None, None)
 		
-		result = self.money
-		
-		self.event.set()
-		return result
-	
-	def withdrawMoney(self, amount):
-		self.event.wait()
-		self.event.clear()
-		
-		result = -1
-		if self.money >= amount:
-			self.money -= amount
-			result = self.money
-		
-		self.event.set()
-		return result
-			
-	def addMoney(self, amount):
-		self.event.wait()
-		self.event.clear()
-		
-		self.money += amount
-		result = self.money
-		
-		self.event.set()
-		return result
+	def addCard(self, pin_code):
+		newCard = Card.Card({"card_ID" : str(len(self.cards) + 1), "pin_code" : pin_code, "money" : "0"})
+		self.cards.append(newCard)
+		return newCard
